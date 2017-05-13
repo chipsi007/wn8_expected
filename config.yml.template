@@ -1,0 +1,9 @@
+mongo:
+    connect_string: "127.0.0.1:27017/wn8"
+    username: ""
+    password: ""
+    
+wg:
+    api_key: ""
+
+
