@@ -137,8 +137,6 @@ function generate_player_list() {
 	})
 }
 
-generate_player_list()
-
 //fisher-yates shuffle from: http://stackoverflow.com/questions/6274339/how-can-i-shuffle-an-array
 function shuffle(array) {
     let counter = array.length;
@@ -187,7 +185,7 @@ function download_stats() {
 			//remove the players we already processed
 			let a = new Set(players);
 			let b = new Set(processed_players);
-			players = (new Set([...a].filter(x => !b.has(x)))).toArray();
+			players = Array.from(new Set([...a].filter(x => !b.has(x))));
 	
 			//shuffle them
 			players = shuffle(players);
@@ -267,6 +265,8 @@ function download_stats() {
 	})
 }
 
+download_stats()
+
 router.get('/generate_player_list', function(req, res, next) {
 	generate_player_list();
 	res.send("Generating player list started");
@@ -301,8 +301,8 @@ router.get('/create_csv', function(req, res, next) {
 });
 
 app.use('/', router);
-app.listen(90, function () {
-	console.log('App listening on port ' + 90)
+app.listen(config.port, function () {
+	console.log('App listening on port ' + config.port)
 })
 
 
