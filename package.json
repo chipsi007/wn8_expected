@@ -1,0 +1,22 @@
+{
+  "name": "wotstats",
+  "description": "Statistics tracker for wot",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node ./app"
+  },
+  "dependencies": {
+    "bluebird": "^3.4.7",
+    "body-parser": "^1.15.2",
+    "cheerio": "^0.22.0",
+    "compression": "^1.6.2",
+    "config-yml": "^0.6.1",
+    "express": "^4.13.4",
+    "express-session": "^1.13.0",
+    "htmlparser2": "^3.9.2",
+    "jQuery": "^1.7.4",
+    "mongodb": "^2.2.8",
+    "request": "^2.79.0",
+    "v8-profiler": "^5.6.5"
+  }
+}
