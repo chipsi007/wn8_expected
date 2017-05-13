@@ -93,44 +93,51 @@ function get_wg_data(page, fields, player, cb) {
 				}
 			}
 		} else { 
-			console.error(response.statusCode + ": "+ error)
+			console.error(error)
 			cb(null, error);
 		}
 	});	
 }
 
+//will request the battles count for players with [start_index, end_index[, in batches of 100
 function generate_player_list() {
+	var start_index = config.wg.start_index
+	var end_index = config.wg.end_index
+	var min_battles = config.wg.min_battles
 	new Promise (function(resolve) {
-		function loop(i) {
-			if (i < 540000000) {
+		function loop(i, once) {
+			if (i < end_index) {
 				var a100_players = [];
-				for (var j = 0; j < 100 && i < 540000000; j++) {
+				for (var j = 0; j < 100 && i < end_index; j++) {
 					a100_players.push(i++);
 				}
 				get_wg_data("/account/info/?extra=statistics.random&", ["statistics.random.battles"], a100_players, function(data, e) {
 					if (e) {
-						i -= 100; //try this again
+						console.error(e);
+						setTimeout(() => { loop(i-100, true); }, 100); //try this batch again
+						return;
 					} else {
 						for (let key of Object.keys(data)) {
-							if (data[key] && data[key].statistics.random.battles > 1000) {
+							if (data[key] && data[key].statistics.random.battles >= min_battles) {
 								db.collection('players').updateOne({_id:key}, {$set: {battles:data[key].statistics.random.battles}}, {upsert: true});
 							}
 						}
-						
 					}
-				})	
-				setTimeout(() => {
-					loop(i);
-				}, 150);
+				})
+				if (!once) {
+					setTimeout(() => { loop(i);	}, 100);
+				}
 			} else {
 				resolve();
 			}	
 		}
-		loop(500000000);
+		loop(start_index);
 	}).then(() => {
 		console.log("Done building player list")
 	})
 }
+
+generate_player_list()
 
 //fisher-yates shuffle from: http://stackoverflow.com/questions/6274339/how-can-i-shuffle-an-array
 function shuffle(array) {
@@ -168,99 +175,97 @@ function binarySearch(ar, el, compare_fn) {
 }
 
 function download_stats() {
-	var promise = db.collection('players').find({},{_id:true}).toArray();
 	var fields = ["tank_id", "random.battles", "random.wins", "random.damage_dealt", "random.frags", "random.spotted", "random.dropped_capture_points"];
-	
+	var promise = db.collection('players').find({},{_id:true}).toArray();
 	promise.then(function(players) {
 		players = players.map((x) => {return x._id});
 
-		//take a random sample
-		players = shuffle(players);
-		players = players.slice(0, 5);
-				
-		var file = fs.createWriteStream('input.csv', { flags: 'w' });
-		file.write('"userid","compDescr","title","type","tier","countryid","battles","victories","damage_dealt","frags","spotted","defence_points"\n');
-		
-		new Promise (function(resolve) {
-			function loop(i) {
-				if (i < players.length) {					
-					get_wg_data("/tanks/stats/?extra=random&", fields, players[i], function(data, e) {
-						if (e) {
-							i--;  //try this again
-						} else {
-							var tanks = {}
-							for (let tank of data) {
-								if (tank_data[tank.tank_id] && tank.random.battles >= 50) { //better to prune early
-									var tank_summary = {}
-									tank_summary.userid = players[i];
-									tank_summary.compDescr = tank.tank_id;
-									tank_summary.title = tank_data[tank.tank_id].name;
-									tank_summary.type = tank_data[tank.tank_id].type;
-									tank_summary.tier = tank_data[tank.tank_id].level;
-									tank_summary.countryid = tank_data[tank.tank_id].nation;
-									tank_summary.battles = tank.random.battles;
-									tank_summary.victories = tank.random.wins;
-									tank_summary.damage_dealt = tank.random.damage_dealt;
-									tank_summary.frags = tank.random.frags;							
-									tank_summary.spotted = tank.random.spotted;
-									tank_summary.defence_points = tank.random.dropped_capture_points;
-									tanks[tank.tank_id] = tank_summary;
+		var promise = db.collection('statistics').find({},{_id:true}).toArray();
+		promise.then(function(processed_players) {	
+			processed_players = processed_players.map((x) => {return x._id});
+			
+			//remove the players we already processed
+			let a = new Set(players);
+			let b = new Set(processed_players);
+			players = (new Set([...a].filter(x => !b.has(x)))).toArray();
+	
+			//shuffle them
+			players = shuffle(players);
+			
+			new Promise (function(resolve) {
+				function loop(i, once) {
+					if (i < players.length) {					
+						get_wg_data("/tanks/stats/?extra=random&", fields, players[i], function(data, e) {
+							if (e) {
+								console.error(e);
+								setTimeout(() => { loop(i, true); }, 100) //try this player again
+								return;
+							} else {
+								var tanks = {}
+								for (let tank of data) {
+									if (tank_data[tank.tank_id] && tank.random.battles >= 50) { //better to prune early
+										var tank_summary = {}
+										tank_summary.userid = players[i];
+										tank_summary.compDescr = tank.tank_id;
+										tank_summary.title = tank_data[tank.tank_id].name;
+										tank_summary.type = tank_data[tank.tank_id].type;
+										tank_summary.tier = tank_data[tank.tank_id].level;
+										tank_summary.countryid = tank_data[tank.tank_id].nation;
+										tank_summary.battles = tank.random.battles;
+										tank_summary.victories = tank.random.wins;
+										tank_summary.damage_dealt = tank.random.damage_dealt;
+										tank_summary.frags = tank.random.frags;							
+										tank_summary.spotted = tank.random.spotted;
+										tank_summary.defence_points = tank.random.dropped_capture_points;
+										tanks[tank.tank_id] = tank_summary;
+									}
 								}
-							}
-							
-							//important for reset accounts, their vehicle stats sometimes show outdated data
-							get_wg_data("/account/tanks/?", ["tank_id"], players[i], function(valid_tanks) {
-								if (e) {
-									i--; //try this again
-								} else {
-									valid_tanks = valid_tanks.map((x) => {return parseInt(x.tank_id)})
-									valid_tanks.sort((a,b) => { return a-b });
-									var to_remove = []
-									for (var key in tanks) {
-										var pos = binarySearch(valid_tanks, key, (a,b) => {return a-b});
-										if (pos < 0) {					
-											to_remove.push(key);
+								
+								//important for reset accounts, their vehicle stats sometimes show outdated data
+								get_wg_data("/account/tanks/?", ["tank_id"], players[i], function(valid_tanks) {
+									if (e) {
+										console.error(e);
+										setTimeout(() => { loop(i, true); }, 100) //try this player again
+										return;
+									} else {
+										valid_tanks = valid_tanks.map((x) => {return parseInt(x.tank_id)})
+										valid_tanks.sort((a,b) => { return a-b });
+										var to_remove = []
+										for (var key in tanks) {
+											var pos = binarySearch(valid_tanks, parseInt(key), (a,b) => {return a-b});
+											if (pos < 0) {					
+												to_remove.push(key);
+											}
 										}
+										for (let key of to_remove) {
+											delete tanks[key];
+										}										
+										//output the data to the DB
+										db.collection('statistics').updateOne({_id:players[i]}, {tanks:tanks}, {upsert: true}, function(e) {
+											if (e) {
+												console.error(e);
+												setTimeout(() => { loop(i, true); }, 100); //try this player again
+												return;
+											}
+										});
 									}
-									for (let key of to_remove) {
-										delete tanks[key];
-									}
-									//output data to csv
-									for (var key in tanks) {
-										var tank = tanks[key];
-										var output = tank.userid + "," + tank.compDescr + "," + tank.title + "," + 
-											tank.type + "," + tank.tier + "," + tank.countryid + "," + tank.battles + "," +
-											tank.victories + "," + tank.damage_dealt + "," + tank.frags + "," +
-											tank.spotted + "," + tank.defence_points + "\n";
-										file.write(output);
-									};
-									
-									//output the data to the DB
-									console.log("uploading");
-									db.collection('statistics').updateOne({_id:parseInt(players[i])}, {tanks:tanks}, {upsert: true});
-									
-								}
-							});
+								});
+							}
+						});
+						if (!once) {
+							setTimeout(() => { loop(++i); }, 100); //do the next player
 						}
-					});
-					setTimeout(() => {
-						loop(++i);
-					}, 1000);
-				} else {
-					resolve();
+					} else {
+						resolve();
+					}
 				}
-			}
-			loop(0);
-		}).then(() => {
-			setTimeout(() => { //give it some time to finish fetching the data/writing to files, etc
-				file.end();
-				console.log("Downloading stats done")
-			}, 20000);
+				loop(0);
+			}).then(() => {
+				console.log("Downloading stats done");
+			})
 		})
 	})
 }
-
-download_stats()
 
 router.get('/generate_player_list', function(req, res, next) {
 	generate_player_list();
@@ -272,9 +277,32 @@ router.get('/generate_data', function(req, res, next) {
 	download_stats();
 });
 
+router.get('/create_csv', function(req, res, next) {
+	res.send("Creating csv");
+	var file = fs.createWriteStream('input.csv', { flags: 'w' });
+	file.write('"userid","compDescr","title","type","tier","countryid","battles","victories","damage_dealt","frags","spotted","defence_points"\n');
+	
+	db.collection('statistics').find({}).each(function (err, data) {
+		//output data to csv
+		if (data) {
+			for (var key in data.tanks) {
+				var tank = data.tanks[key];
+				var output = tank.userid + "," + tank.compDescr + "," + tank.title + "," + 
+					tank.type + "," + tank.tier + "," + tank.countryid + "," + tank.battles + "," +
+					tank.victories + "," + tank.damage_dealt + "," + tank.frags + "," +
+					tank.spotted + "," + tank.defence_points + "\n";
+				file.write(output);
+			};
+		} else {
+			console.log("done writing csv file");
+			file.end();
+		}
+	});	
+});
+
 app.use('/', router);
-app.listen(80, function () {
-	console.log('App listening on port ' + 80)
+app.listen(90, function () {
+	console.log('App listening on port ' + 90)
 })
 
 

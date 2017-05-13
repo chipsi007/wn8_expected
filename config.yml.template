@@ -5,5 +5,7 @@ mongo:
     
 wg:
     api_key: ""
-
+    start_index: 500000000
+    end_index: 540000000
+    min_battles: 1000
 

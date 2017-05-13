@@ -18,9 +18,13 @@ db.createUser(
 - run "npm install" in the project directory
 - run "node app.js"
 
-WARNING: The following functions take a long time, use a lot of bandswidth and hit the WG api servers pretty hard, do this only if you're serious.
+The following functions take a long time, use a lot of bandswidth and hit the WG api servers pretty hard. Do this only if you're serious about using the data.
 
-To start creating a list of players, visit http://localhost/generate_player_list. Once that is done visit http://localhost/generate_data
+- visit http://localhost/generate_player_list to create a list of players. It will take approx 24h
+- Once that is done visit http://localhost/generate_data to put the stats for those players in the db (you can close this and continue at a later time). It will take approx 5 days.
+- Once that is done visit http://localhost/create_csv to output the stats to a csv file that van be parsed by the R script. 
+
+Note: The these functions will occasionally print a "SOURCE_NOT_AVAILABLE" error. This is normal. The wg api sometimes responds with this error, the request will simply be retried.
 
 Now you should have the statistics data in your mongo db and in a file called input.csv. Now to further process this:
 
