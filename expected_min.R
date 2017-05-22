@@ -8,17 +8,13 @@ head(dataMaster)
 nrow(dataMaster)
 
 #apply filters as needed
-userTankStats <- dataMaster[dataMaster$battles > 50,]
+userTankStats <- dataMaster
 
 userTankStats$damage_dealt <- as.double(userTankStats$damage_dealt)
 userTankStats <- userTankStats[,c("userid", "compDescr", "battles",
                                   "victories","damage_dealt","frags",
                                   "spotted","defence_points")]
 userTankStats$userid <- as.factor(userTankStats$userid)
-any(is.na(userTankStats))
-
-# number of battles in dataset
-sum(userTankStats$battles)
 
 #calc actuals
 userTankStats$aFRAG <- userTankStats$frags/userTankStats$battles
@@ -26,23 +22,15 @@ userTankStats$aDAMAGE <- userTankStats$damage_dealt/userTankStats$battles
 userTankStats$aSPOT <- userTankStats$spotted/userTankStats$battles
 userTankStats$aDEF <- userTankStats$defence_points/userTankStats$battles
 userTankStats$aWIN <- 100*userTankStats$victories/userTankStats$battles
-any(is.na(userTankStats))
-
 
 #load current expected values from wnefficiency.net - currently version 30
 wnefficiencyURL <- "expected.csv"
 expectedValues <- read.csv(wnefficiencyURL)
 names(expectedValues) <- c("compDescr", "eFRAG", "eDAMAGE","eSPOT", "eDEF", "eWIN")
 
-head(expectedValues)
-any(is.na(expectedValues))
-
 # add the expected values data to the user tanks data
 require(dplyr)
 userTankStats <- inner_join(x=userTankStats, y=expectedValues, by = c("compDescr") )
-
-# fix chars that upset file naming
-any(is.na(userTankStats))
 
 # calculate the user rSTATS
 userTankStats$rFRAG <- userTankStats$aFRAG/userTankStats$eFRAG
@@ -55,7 +43,6 @@ userTankStats$rDAMAGEproduct <- userTankStats$rDAMAGE * userTankStats$battles
 userTankStats$rSPOTproduct <- userTankStats$rSPOT * userTankStats$battles
 userTankStats$rDEFproduct <- userTankStats$rDEF * userTankStats$battles
 userTankStats$rWINproduct <- userTankStats$rWIN * userTankStats$battles
-any(is.na(userTankStats))
 
 # calculate the user rSTATc's
 userTankStats$rWINc <- pmax(0,(userTankStats$rWIN - 0.71)/(1 - 0.71))
@@ -68,20 +55,16 @@ userTankStats$rDAMAGEcproduct <- userTankStats$rDAMAGEc * userTankStats$battles
 userTankStats$rFRAGcproduct <- userTankStats$rFRAGc * userTankStats$battles
 userTankStats$rSPOTcproduct <- userTankStats$rSPOTc * userTankStats$battles
 userTankStats$rDEFcproduct <- userTankStats$rDEFc * userTankStats$battles
-any(is.na(userTankStats))
 
 # calculate the user WN8 per tank 
 userTankStats$WN8 <- with(userTankStats, 980*rDAMAGEc + 210*rDAMAGEc*rFRAGc + 155*rFRAGc*rSPOTc + 75*rDEFc*rFRAGc + 145*pmin(1.8,rWINc))
 userTankStats$WN8product <- userTankStats$battles * userTankStats$WN8
-any(is.na(userTankStats))
 
 # filter out all tanks where WN8 is below median WN8 for every users' tanks
 require(dplyr)
 median.userTankStatsWN8 <- summarize(group_by(userTankStats,userid), median_WN8 = median(WN8, na.rm=TRUE))
 userTankStatsFiltered <- inner_join(x=userTankStats, y=median.userTankStatsWN8, by = "userid")
 userTankStatsFiltered <- userTankStatsFiltered[userTankStatsFiltered$WN8 >= userTankStatsFiltered$median_WN8,]
-nrow(userTankStatsFiltered)
-any(is.na(userTankStatsFiltered))
 rm(median.userTankStatsWN8)
 
 #calculate the user account WN8, rSTATs, and rSTATSc
@@ -118,42 +101,41 @@ any(is.na(userAccountStats))
 #merge back
 require(dplyr)
 userTankStatsFiltered <- inner_join(x=userTankStatsFiltered, y=userAccountStats, by = c("userid"))
-any(is.na(userTankStatsFiltered))
 
 # create table of compDescr and title as index for the loop
 require(dplyr)
 listOfTanks <- summarize(group_by(userTankStatsFiltered, compDescr), users = n() )
-any(is.na(listOfTanks))
 
 # loop to do linear regression for each rSTAT vs user account rSTAT, derive corrected expected values
 newExpectedValues <- expectedValues
 
 for (i in listOfTanks$compDescr){
     sample <- userTankStatsFiltered[userTankStatsFiltered$compDescr == i,]
-    rDAMAGEmodel <- lm(rDAMAGE ~ user_rDAMAGE, data=sample)
-    rDAMAGEcorrection <- rDAMAGEmodel$coef[[1]] + rDAMAGEmodel$coef[[2]]
-    eDAMAGE_new <- round(rDAMAGEcorrection * expectedValues$eDAMAGE[expectedValues$compDescr == i], 2)
-    newExpectedValues$eDAMAGE[newExpectedValues$compDescr == i] <- eDAMAGE_new
-    rFRAGmodel <- lm(rFRAG ~ user_rFRAG, data=sample)
-    rFRAGcorrection <- rFRAGmodel$coef[[1]] + rFRAGmodel$coef[[2]]
-    eFRAG_new <- round(rFRAGcorrection * expectedValues$eFRAG[expectedValues$compDescr == i], 2)
-    newExpectedValues$eFRAG[newExpectedValues$compDescr == i] <- eFRAG_new
-    rSPOTmodel <- lm(rSPOT ~ user_rSPOT, data=sample)
-    rSPOTcorrection <- rSPOTmodel$coef[[1]] + rSPOTmodel$coef[[2]]
-    eSPOT_new <- round(rSPOTcorrection * expectedValues$eSPOT[expectedValues$compDescr == i], 2)
-    newExpectedValues$eSPOT[newExpectedValues$compDescr == i] <- eSPOT_new
-    rDEFmodel <- lm(rDEF ~ user_rDEF, data=sample)
-    rDEFcorrection <- rDEFmodel$coef[[1]] + rDEFmodel$coef[[2]]
-    eDEF_new <- round(rDEFcorrection * expectedValues$eDEF[expectedValues$compDescr == i], 2)
-    newExpectedValues$eDEF[newExpectedValues$compDescr == i] <- eDEF_new
-    rWINmodel <- lm(rWIN ~ user_rWIN, data=sample)
-    rWINcorrection <- rWINmodel$coef[[1]] + rWINmodel$coef[[2]]
-    eWIN_new <- round(rWINcorrection * expectedValues$eWIN[expectedValues$compDescr == i], 2)
-    newExpectedValues$eWIN[newExpectedValues$compDescr == i] <- eWIN_new	
+	if (nrow(sample) > 0) {	
+		rDAMAGEmodel <- lm(rDAMAGE ~ user_rDAMAGE, data=sample)
+		rDAMAGEcorrection <- rDAMAGEmodel$coef[[1]] + rDAMAGEmodel$coef[[2]]
+		eDAMAGE_new <- round(rDAMAGEcorrection * expectedValues$eDAMAGE[expectedValues$compDescr == i], 2)
+		newExpectedValues$eDAMAGE[newExpectedValues$compDescr == i] <- eDAMAGE_new
+		rFRAGmodel <- lm(rFRAG ~ user_rFRAG, data=sample)
+		rFRAGcorrection <- rFRAGmodel$coef[[1]] + rFRAGmodel$coef[[2]]
+		eFRAG_new <- round(rFRAGcorrection * expectedValues$eFRAG[expectedValues$compDescr == i], 2)
+		newExpectedValues$eFRAG[newExpectedValues$compDescr == i] <- eFRAG_new
+		rSPOTmodel <- lm(rSPOT ~ user_rSPOT, data=sample)
+		rSPOTcorrection <- rSPOTmodel$coef[[1]] + rSPOTmodel$coef[[2]]
+		eSPOT_new <- round(rSPOTcorrection * expectedValues$eSPOT[expectedValues$compDescr == i], 2)
+		newExpectedValues$eSPOT[newExpectedValues$compDescr == i] <- eSPOT_new
+		rDEFmodel <- lm(rDEF ~ user_rDEF, data=sample)
+		rDEFcorrection <- rDEFmodel$coef[[1]] + rDEFmodel$coef[[2]]
+		eDEF_new <- round(rDEFcorrection * expectedValues$eDEF[expectedValues$compDescr == i], 2)
+		newExpectedValues$eDEF[newExpectedValues$compDescr == i] <- eDEF_new
+		rWINmodel <- lm(rWIN ~ user_rWIN, data=sample)
+		rWINcorrection <- rWINmodel$coef[[1]] + rWINmodel$coef[[2]]
+		eWIN_new <- round(rWINcorrection * expectedValues$eWIN[expectedValues$compDescr == i], 2)
+		newExpectedValues$eWIN[newExpectedValues$compDescr == i] <- eWIN_new	
+	}
 }
 
 
-any(is.na(newExpectedValues))
 newExpectedValues <- newExpectedValues[,c("compDescr","eFRAG", "eDAMAGE", "eSPOT", "eDEF",  "eWIN")]
 
 #export new values

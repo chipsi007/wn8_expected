@@ -29,10 +29,38 @@ Note: The these functions will occasionally print a "SOURCE_NOT_AVAILABLE" error
 Now you should have the statistics data in your mongo db and in a file called input.csv. Now to further process this:
 
 - install R
-- open the R console in the project directory and type "install.packages("tidyverse")"
+- open the R console in the project directory and type 
+
+install.packages("tidyverse")
+install.packages("ff")
+install.packages("DBI")
+install.packages("devtools")
+require(devtools)
+install_github("agstudy/rsqlserver")
+
 - Make sure you have an existing expected.csv file (the last version in your directory)
-- type 'source("expected_script.R")'
 
-If everything is correct this should generate an output date.csv file.
+Then
 
-You can use "node validate.js" to calculate correlation between wr-wn8, using the data downloaded and "expected.json" in json format. 
+- type 'source("expected_script.R", echo=T)', to create the csv file
+- type 'source("plotter.R", echo=T)', to generate some plots, see the script for more details
+
+Alternatively
+
+- visit http://localhost/create_min_csv, to create a minimal input.csv file (with tank titles/tier/etc stripped)
+- type 'source("expected_min.R", echo=T)', to create the csv file
+- type 'source("plotter_min.R", echo=T)', to generate some plots, see the script for more details
+
+Alternatively
+
+- visit http://localhost/create_min_csv, to create a minimal input.csv file (with tank titles/tier/etc stripped)
+- type 'source("weighted.R", echo=T)', to create the csv file
+- type 'source("plotter_weighted.R", echo=T)', to generate some plots, see the script for more details
+
+Note: These steps all take a little bit of time of to complete, especially the weighted ones. They also require quite bit of memory 10GB-64GB, if you don't have this amount of RAM memory, make sure you allocate some swap space/pagefiles and be prepared to not use you computer for a little while :). It's best to test the steps first with a smaller sample.
+
+As a last step there is a "node generate_xml_json_csv.js expected_values_file version" that generates expected values files in csv and json format compatible with wnefficiency.net.
+
+You can use "node validate.js json_expected_file" to calculate correlation between wr-wn8, it takes expected values in json format as the first parameter.
+
+

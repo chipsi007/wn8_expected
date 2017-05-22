@@ -1,5 +1,5 @@
 #WN8 Expected Values Updater by Gryphon
-memory.limit(size=50000)
+memory.limit(size=100000)
 
 #load data from csv file on HDD
 dataMaster <- read.csv("input.csv") #this is the datafile of user accounts, one row per user/tank
@@ -8,10 +8,11 @@ head(dataMaster)
 nrow(dataMaster)
 
 #apply filters as needed
-userTankStats <- dataMaster[dataMaster$battles > 50,]
+userTankStats <- dataMaster
 
 userTankStats$damage_dealt <- as.double(userTankStats$damage_dealt)
-userTankStats <- userTankStats[,c("userid", "compDescr", "battles",
+userTankStats <- userTankStats[,c("userid", "compDescr","title", 
+                                  "type", "tier", "countryid", "battles",
                                   "victories","damage_dealt","frags",
                                   "spotted","defence_points")]
 userTankStats$userid <- as.factor(userTankStats$userid)
@@ -42,6 +43,7 @@ require(dplyr)
 userTankStats <- inner_join(x=userTankStats, y=expectedValues, by = c("compDescr") )
 
 # fix chars that upset file naming
+userTankStats$title <- chartr("*/", "_-", userTankStats$title)
 any(is.na(userTankStats))
 
 # calculate the user rSTATS
@@ -122,7 +124,7 @@ any(is.na(userTankStatsFiltered))
 
 # create table of compDescr and title as index for the loop
 require(dplyr)
-listOfTanks <- summarize(group_by(userTankStatsFiltered, compDescr), users = n() )
+listOfTanks <- summarize(group_by(userTankStatsFiltered, compDescr, title ), users = n() )
 any(is.na(listOfTanks))
 
 # loop to do linear regression for each rSTAT vs user account rSTAT, derive corrected expected values
@@ -130,31 +132,33 @@ newExpectedValues <- expectedValues
 
 for (i in listOfTanks$compDescr){
     sample <- userTankStatsFiltered[userTankStatsFiltered$compDescr == i,]
-    rDAMAGEmodel <- lm(rDAMAGE ~ user_rDAMAGE, data=sample)
+    rDAMAGEmodel <- lm(rDAMAGE ~ user_rDAMAGE, data=sample, weights=battles)
     rDAMAGEcorrection <- rDAMAGEmodel$coef[[1]] + rDAMAGEmodel$coef[[2]]
     eDAMAGE_new <- round(rDAMAGEcorrection * expectedValues$eDAMAGE[expectedValues$compDescr == i], 2)
     newExpectedValues$eDAMAGE[newExpectedValues$compDescr == i] <- eDAMAGE_new
-    rFRAGmodel <- lm(rFRAG ~ user_rFRAG, data=sample)
+    rFRAGmodel <- lm(rFRAG ~ user_rFRAG, data=sample, weights=battles)
     rFRAGcorrection <- rFRAGmodel$coef[[1]] + rFRAGmodel$coef[[2]]
     eFRAG_new <- round(rFRAGcorrection * expectedValues$eFRAG[expectedValues$compDescr == i], 2)
     newExpectedValues$eFRAG[newExpectedValues$compDescr == i] <- eFRAG_new
-    rSPOTmodel <- lm(rSPOT ~ user_rSPOT, data=sample)
+    rSPOTmodel <- lm(rSPOT ~ user_rSPOT, data=sample, weights=battles)
     rSPOTcorrection <- rSPOTmodel$coef[[1]] + rSPOTmodel$coef[[2]]
     eSPOT_new <- round(rSPOTcorrection * expectedValues$eSPOT[expectedValues$compDescr == i], 2)
     newExpectedValues$eSPOT[newExpectedValues$compDescr == i] <- eSPOT_new
-    rDEFmodel <- lm(rDEF ~ user_rDEF, data=sample)
+    rDEFmodel <- lm(rDEF ~ user_rDEF, data=sample, weights=battles)
     rDEFcorrection <- rDEFmodel$coef[[1]] + rDEFmodel$coef[[2]]
     eDEF_new <- round(rDEFcorrection * expectedValues$eDEF[expectedValues$compDescr == i], 2)
     newExpectedValues$eDEF[newExpectedValues$compDescr == i] <- eDEF_new
-    rWINmodel <- lm(rWIN ~ user_rWIN, data=sample)
+    rWINmodel <- lm(rWIN ~ user_rWIN, data=sample, weights=battles)
     rWINcorrection <- rWINmodel$coef[[1]] + rWINmodel$coef[[2]]
     eWIN_new <- round(rWINcorrection * expectedValues$eWIN[expectedValues$compDescr == i], 2)
-    newExpectedValues$eWIN[newExpectedValues$compDescr == i] <- eWIN_new	
+    newExpectedValues$eWIN[newExpectedValues$compDescr == i] <- eWIN_new
+	
+    newExpectedValues$title[newExpectedValues$compDescr == i] <- listOfTanks[listOfTanks$compDescr == i,]$title
 }
 
 
 any(is.na(newExpectedValues))
-newExpectedValues <- newExpectedValues[,c("compDescr","eFRAG", "eDAMAGE", "eSPOT", "eDEF",  "eWIN")]
+newExpectedValues <- newExpectedValues[,c("compDescr","eFRAG", "eDAMAGE", "eSPOT", "eDEF",  "eWIN", "title")]
 
 #export new values
 date <- as.Date(Sys.Date(), "%m/%d/%Y" )

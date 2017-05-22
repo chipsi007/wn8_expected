@@ -3,3 +3,10 @@ config.yml
 *.json
 *.csv
 OUTPUT
+plots
+R_db/*
+!R_db/.gitkeep 
+plots/*
+!plots/.gitkeep 
+weighted_plots/*
+!weighted_plots/.gitkeep 

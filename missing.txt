@@ -1,0 +1,109 @@
+4737, 5681, 13905, 15441, 18705, 19201, 19473, 49409, 49921, 49937, 51473, 51729, 52225, 52513, 53793, 58913, 59681, 61457
+
+{  
+   "status":"ok",
+   "meta":{  
+      "count":19,
+      "page_total":1,
+      "total":19,
+      "limit":100,
+      "page":null
+   },
+   "data":{  
+      "49937":{  
+         "tier":8,
+         "tag":"G119_Panzer58_BF",
+         "name":"Schwarzpanzer 58"
+      },
+      "52225":{  
+         "tier":3,
+         "tag":"R34_BT-SV",
+         "name":"БТ-СВ"
+      },
+      "49409":{  
+         "tier":8,
+         "tag":"R61_Object252_BF",
+         "name":"ИС-6 Ч"
+      },
+      "61457":{  
+         "tier":5,
+         "tag":"G107_PzKpfwIII_AusfK",
+         "name":"Pz.Kpfw. III Ausf. K"
+      },
+      "59425":{  
+         "tier":8,
+         "tag":"A13_T34_hvy_BF",
+         "name":"T34 B"
+      },
+      "15441":{  
+         "tier":8,
+         "tag":"GB87_Chieftain_T95_turret",
+         "name":"Chieftain\/T95"
+      },
+      "4737":{  
+         "tier":10,
+         "tag":"S11_Strv_103B",
+         "name":"Strv 103B"
+      },
+      "18705":{  
+         "tier":9,
+         "tag":"G110_Typ_205",
+         "name":"Mäuschen"
+      },
+      "52513":{  
+         "tier":8,
+         "tag":"A45_M6A2E1",
+         "name":"M6A2E1"
+      },
+      "59681":{  
+         "tier":6,
+         "tag":"A118_M4_Thunderbolt",
+         "name":"M4A3E8 Thunderbolt VII"
+      },
+      "51473":{  
+         "tier":5,
+         "tag":"G32_PzV_PzIV",
+         "name":"Pz.Kpfw. V\/IV"
+      },
+      "19473":{  
+         "tier":10,
+         "tag":"G92_VK7201P",
+         "name":"Pz.Kpfw. VII"
+      },
+      "49921":{  
+         "tier":7,
+         "tag":"R133_KV_122",
+         "name":"КВ-122"
+      },
+      "51729":{  
+         "tier":3,
+         "tag":"G36_PzII_J",
+         "name":"Pz.Kpfw. II Ausf. J"
+      },
+      "58913":{  
+         "tier":8,
+         "tag":"A117_T26E5",
+         "name":"T26E5"
+      },
+      "13905":{  
+         "tier":10,
+         "tag":"GB83_FV4005",
+         "name":"FV4005 Stage II"
+      },
+      "19201":{  
+         "tier":10,
+         "tag":"R132_VNII_100LT",
+         "name":"Т-100 ЛТ"
+      },
+      "5681":{  
+         "tier":9,
+         "tag":"Ch28_WZ_132A",
+         "name":"WZ-132A"
+      },
+      "53793":{  
+         "tier":8,
+         "tag":"A81_T95_E2",
+         "name":"T95E2"
+      }
+   }
+}

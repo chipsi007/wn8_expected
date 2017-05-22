@@ -11,7 +11,8 @@ nrow(dataMaster)
 userTankStats <- dataMaster[dataMaster$battles > 50,]
 
 userTankStats$damage_dealt <- as.double(userTankStats$damage_dealt)
-userTankStats <- userTankStats[,c("userid", "compDescr", "battles",
+userTankStats <- userTankStats[,c("userid", "compDescr","title", 
+                                  "type", "tier", "countryid", "battles",
                                   "victories","damage_dealt","frags",
                                   "spotted","defence_points")]
 userTankStats$userid <- as.factor(userTankStats$userid)
@@ -42,6 +43,7 @@ require(dplyr)
 userTankStats <- inner_join(x=userTankStats, y=expectedValues, by = c("compDescr") )
 
 # fix chars that upset file naming
+userTankStats$title <- chartr("*/", "_-", userTankStats$title)
 any(is.na(userTankStats))
 
 # calculate the user rSTATS
@@ -122,7 +124,7 @@ any(is.na(userTankStatsFiltered))
 
 # create table of compDescr and title as index for the loop
 require(dplyr)
-listOfTanks <- summarize(group_by(userTankStatsFiltered, compDescr), users = n() )
+listOfTanks <- summarize(group_by(userTankStatsFiltered, compDescr, title ), users = n() )
 any(is.na(listOfTanks))
 
 # loop to do linear regression for each rSTAT vs user account rSTAT, derive corrected expected values
@@ -149,12 +151,14 @@ for (i in listOfTanks$compDescr){
     rWINmodel <- lm(rWIN ~ user_rWIN, data=sample)
     rWINcorrection <- rWINmodel$coef[[1]] + rWINmodel$coef[[2]]
     eWIN_new <- round(rWINcorrection * expectedValues$eWIN[expectedValues$compDescr == i], 2)
-    newExpectedValues$eWIN[newExpectedValues$compDescr == i] <- eWIN_new	
+    newExpectedValues$eWIN[newExpectedValues$compDescr == i] <- eWIN_new
+	
+    newExpectedValues$title[newExpectedValues$compDescr == i] <- listOfTanks[listOfTanks$compDescr == i,]$title
 }
 
 
 any(is.na(newExpectedValues))
-newExpectedValues <- newExpectedValues[,c("compDescr","eFRAG", "eDAMAGE", "eSPOT", "eDEF",  "eWIN")]
+newExpectedValues <- newExpectedValues[,c("compDescr","eFRAG", "eDAMAGE", "eSPOT", "eDEF",  "eWIN", "title")]
 
 #export new values
 date <- as.Date(Sys.Date(), "%m/%d/%Y" )

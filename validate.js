@@ -3,7 +3,11 @@ var config = require('config-yml');
 var MongoClient = require('mongodb').MongoClient;
 
 var wg_app_id = config.wg.api_id;
-var expected_file = "expected.json"
+var expected_file = process.argv[2];
+
+if (!expected_file) {
+	console.log("usage: node validate.js filename.json")
+}
 
 //calculate wn8
 function calculate_wn8(tank, exp) {
@@ -201,13 +205,13 @@ new Promise(function(resolve) {
 				total_battles += data.tanks[key].battles;
 			}	
 			if (total_battles > 0) {
-				players++;
 				var wn8 = calculate_account_wn8(tank_stats, tank_expected_wn8);
 				var wr = total_wins / total_battles;
-				sum_wn8 += wn8;
-				sum_wr += wr;
-				
-				console.log(wr, wn8);
+				if (wn8 && wr) {
+					players++;
+					sum_wn8 += wn8;
+					sum_wr += wr;
+				}
 			}
 		} else {
 			resolve();
@@ -241,10 +245,11 @@ new Promise(function(resolve) {
 			if (total_battles > 0) {
 				var wr = total_wins / total_battles;
 				var wn8 = calculate_account_wn8(tank_stats, tank_expected_wn8);
-				
-				nom += (wr - avg_wr) * (wn8 - avg_wn8);
-				wn8_sum_squared += Math.pow((wn8 - avg_wn8), 2);
-				wr_sum_squared += Math.pow((wr - avg_wr), 2)
+				if (wn8 && wr) {
+					nom += (wr - avg_wr) * (wn8 - avg_wn8);
+					wn8_sum_squared += Math.pow((wn8 - avg_wn8), 2);
+					wr_sum_squared += Math.pow((wr - avg_wr), 2)
+				}
 			}
 		} else {
 			var corr_wn8 = nom / Math.sqrt(wn8_sum_squared * wr_sum_squared)

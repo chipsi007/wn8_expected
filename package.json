@@ -11,6 +11,7 @@
     "cheerio": "^0.22.0",
     "compression": "^1.6.2",
     "config-yml": "^0.6.1",
+    "csv": "^1.1.1",
     "express": "^4.13.4",
     "express-session": "^1.13.0",
     "htmlparser2": "^3.9.2",

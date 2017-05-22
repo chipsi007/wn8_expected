@@ -5,9 +5,16 @@ mongo:
     username: ""
     password: ""
     
+
 wg:
     api_key: ""
     start_index: 500000000
-    end_index: 540000000
+    end_index: 550000000
     min_battles: 1000
+    min_tank_battles: 0
+    src: "random"
+
+#only applies to csv output
+csv:
+    min_tank_battles: 0
 

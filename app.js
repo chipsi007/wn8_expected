@@ -12,7 +12,7 @@ var MongoClient = require('mongodb').MongoClient;
 var app = express();
 
 var tank_data;
-request("https://api.worldoftanks.eu/wot/encyclopedia/tanks/?application_id=" + config.wg.api_key + "&fields=tank_id,type,name,level,nation", function (error, response, data) {
+request("https://api.worldoftanks.ru/wot/encyclopedia/tanks/?application_id=" + config.wg.api_key + "&fields=tank_id,type,name,level,nation", function (error, response, data) {
 
 tank_data = JSON.parse(data).data;
 
@@ -111,15 +111,15 @@ function generate_player_list() {
 				for (var j = 0; j < 100 && i < end_index; j++) {
 					a100_players.push(i++);
 				}
-				get_wg_data("/account/info/?extra=statistics.random&", ["statistics.random.battles"], a100_players, function(data, e) {
+				get_wg_data("/account/info/?extra=statistics.random&", ["statistics." + [config.wg.src] + ".battles"], a100_players, function(data, e) {
 					if (e) {
 						console.error(e);
 						setTimeout(() => { loop(i-100, true); }, 100); //try this batch again
 						return;
 					} else {
 						for (let key of Object.keys(data)) {
-							if (data[key] && data[key].statistics.random.battles >= min_battles) {
-								db.collection('players').updateOne({_id:key}, {$set: {battles:data[key].statistics.random.battles}}, {upsert: true});
+							if (data[key] && data[key].statistics[src].battles >= min_battles) {
+								db.collection('players').updateOne({_id:key}, {$set: {battles:data[key].statistics[src].battles}}, {upsert: true});
 							}
 						}
 					}
@@ -173,7 +173,7 @@ function binarySearch(ar, el, compare_fn) {
 }
 
 function download_stats() {
-	var fields = ["tank_id", "random.battles", "random.wins", "random.damage_dealt", "random.frags", "random.spotted", "random.dropped_capture_points"];
+	var fields = ["tank_id", config.wg.src + ".battles", config.wg.src +"random.wins", config.wg.src +".damage_dealt", config.wg.src +".frags", config.wg.src +".spotted", config.wg.src + ".dropped_capture_points"];
 	var promise = db.collection('players').find({},{_id:true}).toArray();
 	promise.then(function(players) {
 		players = players.map((x) => {return x._id});
@@ -201,20 +201,27 @@ function download_stats() {
 							} else {
 								var tanks = {}
 								for (let tank of data) {
-									if (tank_data[tank.tank_id] && tank.random.battles >= 50) { //better to prune early
+									if (tank[src].battles >= config.wg.min_tank_battles) {
 										var tank_summary = {}
 										tank_summary.userid = players[i];
 										tank_summary.compDescr = tank.tank_id;
-										tank_summary.title = tank_data[tank.tank_id].name;
-										tank_summary.type = tank_data[tank.tank_id].type;
-										tank_summary.tier = tank_data[tank.tank_id].level;
-										tank_summary.countryid = tank_data[tank.tank_id].nation;
-										tank_summary.battles = tank.random.battles;
-										tank_summary.victories = tank.random.wins;
-										tank_summary.damage_dealt = tank.random.damage_dealt;
-										tank_summary.frags = tank.random.frags;							
-										tank_summary.spotted = tank.random.spotted;
-										tank_summary.defence_points = tank.random.dropped_capture_points;
+										if (tank_data[tank.tank_id]) {
+											tank_summary.title = tank_data[tank.tank_id].name;
+											tank_summary.type = tank_data[tank.tank_id].type;
+											tank_summary.tier = tank_data[tank.tank_id].level;
+											tank_summary.countryid = tank_data[tank.tank_id].nation;
+										} else {
+											tank_summary.title = String(tank.tank_id);
+											tank_summary.type = String("unknown");
+											tank_summary.tier = 0;
+											tank_summary.countryid = String("unknown");											
+										}
+										tank_summary.battles = tank[src].battles;
+										tank_summary.victories = tank[src].wins;
+										tank_summary.damage_dealt = tank[src].damage_dealt;
+										tank_summary.frags = tank[src].frags;							
+										tank_summary.spotted = tank[src].spotted;
+										tank_summary.defence_points = tank[src].dropped_capture_points;
 										tanks[tank.tank_id] = tank_summary;
 									}
 								}
@@ -226,6 +233,7 @@ function download_stats() {
 										setTimeout(() => { loop(i, true); }, 100) //try this player again
 										return;
 									} else {
+										if (!valid_tanks) valid_tanks = [];
 										valid_tanks = valid_tanks.map((x) => {return parseInt(x.tank_id)})
 										valid_tanks.sort((a,b) => { return a-b });
 										var to_remove = []
@@ -265,7 +273,71 @@ function download_stats() {
 	})
 }
 
-download_stats()
+function create_csv() {
+	var outFile = fs.createWriteStream('input.csv', { flags: 'w' });
+	outFile.write('"userid","compDescr","title","type","tier","countryid","battles","victories","damage_dealt","frags","spotted","defence_points"');	
+	outFile.write('\n');
+	
+	db.collection('statistics').find({}).each(function (err, data) {
+		//output data to csv
+		if (data) {
+			for (var key in data.tanks) {
+				var tank = data.tanks[key];
+				if (tank.battles >= config.csv.min_tank_battles) {
+					var output = tank.userid + "," + tank.compDescr + "," + tank.title + "," + 
+						tank.type + "," + tank.tier + "," + tank.countryid + "," + tank.battles + "," +
+						tank.victories + "," + tank.damage_dealt + "," + tank.frags + "," +
+						tank.spotted + "," + tank.defence_points;
+					output += "\n";
+					outFile.write(output);
+				}
+			};
+		} else {
+			console.log("done writing csv file");
+			outFile.end();
+		}
+	});
+}
+
+function create_min_csv() {
+	var outFile = fs.createWriteStream('input.csv', { flags: 'w' });
+	outFile.write('"userid","compDescr","battles","victories","damage_dealt","frags","spotted","defence_points"');	
+	outFile.write('\n');
+	
+	db.collection('statistics').find({}).each(function (err, data) {
+		//output data to csv
+		if (data) {
+			for (var key in data.tanks) {
+				var tank = data.tanks[key];
+				if (tank.battles >= config.csv.min_tank_battles) {
+					var output = tank.userid + "," + tank.compDescr + "," + tank.battles + "," +
+						tank.victories + "," + tank.damage_dealt + "," + tank.frags + "," +
+						tank.spotted + "," + tank.defence_points;
+					output += "\n";
+					outFile.write(output);
+				}
+			};
+		} else {
+			console.log("done writing csv file");
+			outFile.end();
+		}
+	});
+}
+
+function fix_names() {
+	db.collection('statistics').find({}).each(function (err, data) {
+		if (data) {
+			for (var key in data.tanks) {
+				var tank = data.tanks[key];
+				tank.title = tank_data[tank.compDescr].tag;
+			}
+			db.collection('statistics').updateOne({_id:data._id}, data, {upsert: true});
+		} else {
+			console.log("done")
+		}
+	})
+}
+
 
 router.get('/generate_player_list', function(req, res, next) {
 	generate_player_list();
@@ -279,25 +351,12 @@ router.get('/generate_data', function(req, res, next) {
 
 router.get('/create_csv', function(req, res, next) {
 	res.send("Creating csv");
-	var file = fs.createWriteStream('input.csv', { flags: 'w' });
-	file.write('"userid","compDescr","title","type","tier","countryid","battles","victories","damage_dealt","frags","spotted","defence_points"\n');
-	
-	db.collection('statistics').find({}).each(function (err, data) {
-		//output data to csv
-		if (data) {
-			for (var key in data.tanks) {
-				var tank = data.tanks[key];
-				var output = tank.userid + "," + tank.compDescr + "," + tank.title + "," + 
-					tank.type + "," + tank.tier + "," + tank.countryid + "," + tank.battles + "," +
-					tank.victories + "," + tank.damage_dealt + "," + tank.frags + "," +
-					tank.spotted + "," + tank.defence_points + "\n";
-				file.write(output);
-			};
-		} else {
-			console.log("done writing csv file");
-			file.end();
-		}
-	});	
+	create_csv()
+});
+
+router.get('/create_min_csv', function(req, res, next) {
+	res.send("Creating csv");
+	create_min_csv();
 });
 
 app.use('/', router);
