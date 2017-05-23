@@ -1,59 +1,60 @@
 15441, 17217, 18705, 19457, 51473, 52993, 19201, 62785, 63233
+JITT, Chieftain\/T95, KV-4 Kreslavskiy, Mäuschen, AMX M4 mle. 49, Pz.Kpfw. V\/IV, A-32, T-100 LT
 
-{  
+{
    "status":"ok",
-   "meta":{  
+   "meta":{
       "count":9,
       "page_total":1,
       "total":9,
       "limit":100,
       "page":null
    },
-   "data":{  
-      "19457":{  
+   "data":{
+      "19457":{
          "tier":7,
          "tag":"R131_Tank_Gavalov",
-         "name":"ЛТГ"
+         "name":"LTG"
       },
-      "15441":{  
+      "15441":{
          "tier":8,
          "tag":"GB87_Chieftain_T95_turret",
          "name":"Chieftain\/T95"
       },
-      "63233":{  
+      "63233":{
          "tier":8,
          "tag":"R128_KV4_Kreslavskiy",
-         "name":"КВ-4 Креславского"
+         "name":"KV-4 Kreslavskiy"
       },
-      "18705":{  
+      "18705":{
          "tier":9,
          "tag":"G110_Typ_205",
          "name":"Mäuschen"
       },
-      "62785":{  
+      "62785":{
          "tier":8,
          "tag":"F74_AMX_M4_1949",
          "name":"AMX M4 mle. 49"
       },
-      "51473":{  
+      "51473":{
          "tier":5,
          "tag":"G32_PzV_PzIV",
          "name":"Pz.Kpfw. V\/IV"
       },
-      "52993":{  
+      "52993":{
          "tier":4,
          "tag":"R68_A-32",
-         "name":"А-32"
+         "name":"A-32"
       },
-      "17217":{  
+      "17217":{
          "tier":10,
          "tag":"F88_AMX_13_105",
          "name":"AMX 13 105"
       },
-      "19201":{  
+      "19201":{
          "tier":10,
          "tag":"R132_VNII_100LT",
-         "name":"Т-100 ЛТ"
+         "name":"T-100 LT"
       }
    }
 }
