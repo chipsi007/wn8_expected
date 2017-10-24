@@ -40,13 +40,13 @@ if(err) throw err;
 db.authenticate(config.mongo.username, config.mongo.password, function(err) {	
 if(err) throw err;
 
-var servers = ["kr", "asia", "com", "eu", "ru"]
+var servers = ["ru", "eu", "com", "asia", "kr"]
+var boundaries = [500000000, 1000000000, 2000000000, 3000000000, 4000000000]
 
 function get_server(id) {
-	if(id > 3000000000){return "kr";}
-	if(id > 2000000000){return "asia";}
-	if(id > 1000000000){return "com";}
-	if(id > 500000000){return "eu";}
+	if(id >= 2000000000){return "asia";}
+	if(id >= 1000000000){return "com";}
+	if(id >= 500000000){return "eu";}
 	return "ru";
 }
 
@@ -93,33 +93,58 @@ function get_wg_data(page, fields, player, cb) {
 				}
 			}
 		} else { 
+			console.error("Error fetching link: " + link);
 			console.error(error)
 			cb(null, error);
 		}
 	});	
 }
 
-//will request the battles count for players with [start_index, end_index[, in batches of 100
+//will request the battles count for players with [start_index, 3000000000[, in batches of 100.
 function generate_player_list() {
-	var start_index = config.wg.start_index
-	var end_index = config.wg.end_index
-	var min_battles = config.wg.min_battles
-	new Promise (function(resolve) {
-		function loop(i, once) {
-			if (i < end_index) {
+	var start_index = 0
+	var last_player = db.collection('players').find({}).sort({_id : -1}).limit(1).toArray();
+	last_player.then((last) => {
+		start_index = 1;
+		if (last && last[0]._id) {
+			start_index = parseInt(last[0]._id);
+			console.log("Restarting at: ", start_index)
+		}
+		var consecutive_missing_accounts = 0;
+		new Promise (function(resolve) {
+			function loop(i, once) {
+				if (consecutive_missing_accounts > 2000000) {
+					for (let boundary of boundaries) {
+						if (boundary > i) {
+							i = boundary;
+							consecutive_missing_accounts = 0;
+							console.log("Boundary reached, jumping to: ", i)
+							break;
+						}
+					}
+				}
+				if (i >= 4000000000) {
+					resolve();
+					return;
+				}
 				var a100_players = [];
-				for (var j = 0; j < 100 && i < end_index; j++) {
+				for (var j = 0; j < 100; j++) {
 					a100_players.push(i++);
 				}
 				get_wg_data("/account/info/?extra=statistics.random&", ["statistics." + [config.wg.src] + ".battles"], a100_players, function(data, e) {
 					if (e) {
 						console.error(e);
-						setTimeout(() => { loop(i-100, true); }, 100); //try this batch again
+						setTimeout(() => { loop(i-100, true); }, 500); //try this batch again
 						return;
 					} else {
 						for (let key of Object.keys(data)) {
-							if (data[key] && data[key].statistics[src].battles >= min_battles) {
-								db.collection('players').updateOne({_id:key}, {$set: {battles:data[key].statistics[src].battles}}, {upsert: true});
+							if (data[key]) {
+								consecutive_missing_accounts = 0;
+								if (data[key].statistics[config.wg.src].battles >= config.wg.min_battles_playerlist) {
+									db.collection('players').updateOne({_id:parseInt(key)}, {$set: {battles:parseInt(data[key].statistics[config.wg.src].battles)}}, {upsert: true});
+								}
+							} else {
+								consecutive_missing_accounts++;
 							}
 						}
 					}
@@ -127,13 +152,11 @@ function generate_player_list() {
 				if (!once) {
 					setTimeout(() => { loop(i);	}, 100);
 				}
-			} else {
-				resolve();
-			}	
-		}
-		loop(start_index);
-	}).then(() => {
-		console.log("Done building player list")
+			}
+			loop(start_index);
+		}).then(() => {
+			console.log("Done building player list")
+		})
 	})
 }
 
@@ -173,12 +196,13 @@ function binarySearch(ar, el, compare_fn) {
 }
 
 function download_stats() {
-	var fields = ["tank_id", config.wg.src + ".battles", config.wg.src +"random.wins", config.wg.src +".damage_dealt", config.wg.src +".frags", config.wg.src +".spotted", config.wg.src + ".dropped_capture_points"];
-	var promise = db.collection('players').find({},{_id:true}).toArray();
+	var fields = ["tank_id", config.wg.src + ".battles", config.wg.src + ".wins", config.wg.src + ".damage_dealt", config.wg.src + ".frags", config.wg.src + ".spotted", config.wg.src + ".dropped_capture_points"];
+	
+	var promise = db.collection('players').find({battles:{$gte: config.wg.min_battles}},{_id:true}).toArray();
 	promise.then(function(players) {
 		players = players.map((x) => {return x._id});
 
-		var promise = db.collection('statistics').find({},{_id:true}).toArray();
+		var promise = db.collection('statistics' + config.wg.src).find({},{_id:true}).toArray();
 		promise.then(function(processed_players) {	
 			processed_players = processed_players.map((x) => {return x._id});
 			
@@ -189,48 +213,32 @@ function download_stats() {
 	
 			//shuffle them
 			players = shuffle(players);
+			console.log("Players remaining: ", players.length);
 			
 			new Promise (function(resolve) {
-				function loop(i, once) {
-					if (i < players.length) {					
-						get_wg_data("/tanks/stats/?extra=random&", fields, players[i], function(data, e) {
-							if (e) {
+				function loop() {
+					if (players.length > 0) {
+						var player = players.pop();
+						setTimeout(() => { loop(); }, 200); //do the next player					
+						get_wg_data("/tanks/stats/?extra=random&", fields, player, function(data, e) {
+							if (e || !data) {
 								console.error(e);
-								setTimeout(() => { loop(i, true); }, 100) //try this player again
+								console.log("Retrying: ", player);
+								players.unshift(player)
 								return;
 							} else {
 								var tanks = {}
 								for (let tank of data) {
-									if (tank[src].battles >= config.wg.min_tank_battles) {
-										var tank_summary = {}
-										tank_summary.userid = players[i];
-										tank_summary.compDescr = tank.tank_id;
-										if (tank_data[tank.tank_id]) {
-											tank_summary.title = tank_data[tank.tank_id].name;
-											tank_summary.type = tank_data[tank.tank_id].type;
-											tank_summary.tier = tank_data[tank.tank_id].level;
-											tank_summary.countryid = tank_data[tank.tank_id].nation;
-										} else {
-											tank_summary.title = String(tank.tank_id);
-											tank_summary.type = String("unknown");
-											tank_summary.tier = 0;
-											tank_summary.countryid = String("unknown");											
-										}
-										tank_summary.battles = tank[src].battles;
-										tank_summary.victories = tank[src].wins;
-										tank_summary.damage_dealt = tank[src].damage_dealt;
-										tank_summary.frags = tank[src].frags;							
-										tank_summary.spotted = tank[src].spotted;
-										tank_summary.defence_points = tank[src].dropped_capture_points;
-										tanks[tank.tank_id] = tank_summary;
+									if (tank[config.wg.src].battles >= config.wg.min_tank_battles) {
+										tanks[tank.tank_id] = tank[config.wg.src];
 									}
 								}
-								
 								//important for reset accounts, their vehicle stats sometimes show outdated data
-								get_wg_data("/account/tanks/?", ["tank_id"], players[i], function(valid_tanks) {
+								get_wg_data("/account/tanks/?", ["tank_id"], player, function(valid_tanks) {
 									if (e) {
 										console.error(e);
-										setTimeout(() => { loop(i, true); }, 100) //try this player again
+										console.log("Retrying: ", player);
+										players.unshift(player)
 										return;
 									} else {
 										if (!valid_tanks) valid_tanks = [];
@@ -247,20 +255,20 @@ function download_stats() {
 											delete tanks[key];
 										}										
 										//output the data to the DB
-										db.collection('statistics').updateOne({_id:players[i]}, {tanks:tanks}, {upsert: true}, function(e) {
-											if (e) {
-												console.error(e);
-												setTimeout(() => { loop(i, true); }, 100); //try this player again
-												return;
-											}
-										});
+										if (Object.keys(tanks).length !== 0) {										
+											db.collection('statistics_' + config.wg.src).updateOne({_id:player}, {tanks:tanks}, {upsert: true}, function(e) {
+												if (e) {
+													console.error(e);
+													console.log("Retrying: ", player);
+													players.unshift(player)
+													return;
+												}
+											});
+										}
 									}
 								});
 							}
 						});
-						if (!once) {
-							setTimeout(() => { loop(++i); }, 100); //do the next player
-						}
 					} else {
 						resolve();
 					}
@@ -273,46 +281,20 @@ function download_stats() {
 	})
 }
 
-function create_csv() {
-	var outFile = fs.createWriteStream('input.csv', { flags: 'w' });
-	outFile.write('"userid","compDescr","title","type","tier","countryid","battles","victories","damage_dealt","frags","spotted","defence_points"');	
-	outFile.write('\n');
-	
-	db.collection('statistics').find({}).each(function (err, data) {
-		//output data to csv
-		if (data) {
-			for (var key in data.tanks) {
-				var tank = data.tanks[key];
-				if (tank.battles >= config.csv.min_tank_battles) {
-					var output = tank.userid + "," + tank.compDescr + "," + tank.title + "," + 
-						tank.type + "," + tank.tier + "," + tank.countryid + "," + tank.battles + "," +
-						tank.victories + "," + tank.damage_dealt + "," + tank.frags + "," +
-						tank.spotted + "," + tank.defence_points;
-					output += "\n";
-					outFile.write(output);
-				}
-			};
-		} else {
-			console.log("done writing csv file");
-			outFile.end();
-		}
-	});
-}
-
 function create_min_csv() {
-	var outFile = fs.createWriteStream('input.csv', { flags: 'w' });
+	var outFile = fs.createWriteStream('input2.csv', { flags: 'w' });
 	outFile.write('"userid","compDescr","battles","victories","damage_dealt","frags","spotted","defence_points"');	
 	outFile.write('\n');
 	
-	db.collection('statistics').find({}).each(function (err, data) {
+	db.collection('statistics_' + config.wg.src).find({}).each(function (err, data) {
 		//output data to csv
 		if (data) {
 			for (var key in data.tanks) {
 				var tank = data.tanks[key];
 				if (tank.battles >= config.csv.min_tank_battles) {
-					var output = tank.userid + "," + tank.compDescr + "," + tank.battles + "," +
-						tank.victories + "," + tank.damage_dealt + "," + tank.frags + "," +
-						tank.spotted + "," + tank.defence_points;
+					var output = data._id + "," + key + "," + tank.battles + "," +
+						tank.wins + "," + tank.damage_dealt + "," + tank.frags + "," +
+						tank.spotted + "," + tank.dropped_capture_points;
 					output += "\n";
 					outFile.write(output);
 				}
@@ -322,20 +304,6 @@ function create_min_csv() {
 			outFile.end();
 		}
 	});
-}
-
-function fix_names() {
-	db.collection('statistics').find({}).each(function (err, data) {
-		if (data) {
-			for (var key in data.tanks) {
-				var tank = data.tanks[key];
-				tank.title = tank_data[tank.compDescr].tag;
-			}
-			db.collection('statistics').updateOne({_id:data._id}, data, {upsert: true});
-		} else {
-			console.log("done")
-		}
-	})
 }
 
 
@@ -351,7 +319,7 @@ router.get('/generate_data', function(req, res, next) {
 
 router.get('/create_csv', function(req, res, next) {
 	res.send("Creating csv");
-	create_csv()
+	create_min_csv();
 });
 
 router.get('/create_min_csv', function(req, res, next) {
@@ -364,6 +332,7 @@ app.listen(config.port, function () {
 	console.log('App listening on port ' + config.port)
 })
 
+create_min_csv();
 
 });}); //end open mongo databases
 	
